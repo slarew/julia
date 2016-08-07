@@ -171,7 +171,44 @@ endif
 # Whether to use GPL libraries or not.
 USE_GPL_LIBS ?= 1
 
+# Whether to install Julia as a framework on Apple platforms.
+DARWIN_FRAMEWORK ?= 0
+
+framework_name ?= Julia
+framework_bundleidentifier ?= org.julialang.julia
+
+framework_directory:=$(framework_name).framework
+framework_versions:=$(framework_directory)/Versions
+framework_currver:=$(framework_versions)/$(SOMAJOR)
+framework_dylib:=$(framework_currver)/$(framework_name)
+framework_headers:=$(framework_currver)/Headers
+framework_documentation:=$(framework_currver)/Documentation
+framework_resources:=$(framework_currver)/Resources
+framework_frameworks:=$(framework_currver)/Frameworks
+framework_infoplist:=$(framework_resources)/Info.plist
+
+# The codesigning identity.
+# used with `codesign -s $(apple_codesign_keychain_identity) $file`
+apple_codesign_keychain_identity := -
+
+# By default, derive the codesign identifiers from the framework bundle id
+apple_codesign_id_julia ?= $(framework_bundleidentifier)
+apple_codesign_id_julia_ui = $(apple_codesign_id_julia).ui
+apple_codesign_id_julia_deps = $(apple_codesign_id_julia).deps
+
 # Directories where said libraries get installed to
+ifeq ($(DARWIN_FRAMEWORK), 1)
+prefix ?= $(abspath .)
+bindir = $(prefix)/$(framework_currver)/Helpers
+libdir = $(prefix)/$(framework_currver)
+libexecdir = $(prefix)/$(framework_currver)/Helpers
+datarootdir = $(prefix)/$(framework_resources)
+docdir = $(prefix)/$(framework_documentation)
+mandir = $(datarootdir)/man
+man1dir = $(mandir)/man1
+includedir = $(prefix)/$(framework_headers)
+sysconfdir = $(prefix)/$(framework_resources)
+else
 prefix ?= $(abspath julia-$(JULIA_COMMIT))
 bindir := $(prefix)/bin
 libdir := $(prefix)/lib
@@ -182,6 +219,7 @@ mandir := $(datarootdir)/man
 man1dir := $(mandir)/man1
 includedir := $(prefix)/include
 sysconfdir := $(prefix)/etc
+endif
 
 # Directories where things get built into
 build_prefix := $(BUILDROOT)/usr
@@ -205,7 +243,11 @@ build_libdir := $(build_prefix)/lib/$(MULTIARCH)
 endif
 
 # Private library directories
+ifeq ($(DARWIN_FRAMEWORK), 1)
+private_libdir := $(prefix)/$(framework_frameworks)
+else
 private_libdir := $(libdir)/julia
+endif
 build_private_libdir := $(build_libdir)/julia
 
 # Calculate relative paths to libdir, private_libdir, datarootdir, and sysconfdir
@@ -403,12 +445,18 @@ DEBUGFLAGS := -O0 -g -DJL_DEBUG_BUILD -fstack-protector-all
 SHIPFLAGS := -O3 -g
 ifeq ($(OS), Darwin)
 ifeq ($(USE_LIBCPP), 1)
-CC += -stdlib=libc++ -mmacosx-version-min=10.7
-CXX += -stdlib=libc++ -mmacosx-version-min=10.7
-FC += -mmacosx-version-min=10.7
+MACOSX_DEPLOYMENT_TARGET ?= 10.7
+# export MACOSX_DEPLOYMENT_TARGET so that ld picks it up, especially for deps 
+export MACOSX_DEPLOYMENT_TARGET
+#TODO: Check that MACOSX_DEPLOYMENT_TARGET is >= 10.7
+CC += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+CXX += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+FC += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 else
-CC += $(STDLIBCPP_FLAG) -mmacosx-version-min=10.6
-CXX += $(STDLIBCPP_FLAG) -mmacosx-version-min=10.6
+MACOSX_DEPLOYMENT_TARGET ?= 10.6
+export MACOSX_DEPLOYMENT_TARGET
+CC += $(STDLIBCPP_FLAG) -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+CXX += $(STDLIBCPP_FLAG) -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 endif
 JCPPFLAGS += -D_LARGEFILE_SOURCE -D_DARWIN_USE_64_BIT_INODE=1
 endif
@@ -902,7 +950,7 @@ JLIBLDFLAGS := -Wl,-Bsymbolic-functions
 else
 JLIBLDFLAGS :=
 endif
-else #Linux
+else ifneq ($(OS), Darwin)
 JLIBLDFLAGS :=
 endif
 
@@ -915,11 +963,13 @@ ifeq ($(OS), Darwin)
 INSTALL_NAME_CMD := install_name_tool -id $(INSTALL_NAME_ID_DIR)
 INSTALL_NAME_CHANGE_CMD := install_name_tool -change
 SHLIB_EXT := dylib
-OSLIBS += -ldl -Wl,-w -framework CoreFoundation -framework CoreServices $(LIBUNWIND)
+OSLIBS += $(LIBUNWIND)
 WHOLE_ARCHIVE := -Xlinker -all_load
 NO_WHOLE_ARCHIVE :=
-JLDFLAGS :=
+# Embed an Info.plist in the julia executable
+JLDFLAGS := -Wl,-sectcreate,__TEXT,__info_plist,Info.plist
 HAVE_SSP := 1
+JLIBLDFLAGS := -Wl,-compatibility_version,$(SOMAJOR) -Wl,-current_version,$(JULIA_MAJOR_VERSION).$(JULIA_MINOR_VERSION).$(JULIA_PATCH_VERSION)
 endif
 
 ifeq ($(OS), WINNT)

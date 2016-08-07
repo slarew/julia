@@ -162,9 +162,9 @@ include("version.jl")
 # system & environment
 include("libc.jl")
 using .Libc: getpid, gethostname, time
+include("env.jl")
 include("libdl.jl")
 using .Libdl: DL_LOAD_PATH
-include("env.jl")
 
 # Scheduling
 include("libuv.jl")

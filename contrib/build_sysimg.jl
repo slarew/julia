@@ -151,12 +151,17 @@ function link_sysimg(sysimg_path=nothing, cc=find_system_compiler(), debug=false
     if sysimg_path === nothing
         sysimg_path = default_sysimg_path(debug)
     end
-    julia_libdir = dirname(Libdl.dlpath(debug ? "libjulia-debug" : "libjulia"))
 
-    FLAGS = ["-L$julia_libdir"]
+    if Base.DARWIN_FRAMEWORK
+        julia_libdir = joinpath(dirname(Libdl.dlpath(Base.DARWIN_FRAMEWORK_NAME)),"..","..","..")
+        FLAGS = ["-F$julia_libdir","-framework",Base.DARWIN_FRAMEWORK_NAME]
+    else
+        julia_libdir = dirname(Libdl.dlpath(debug ? "libjulia-debug" : "libjulia"))
+        FLAGS = ["-L$julia_libdir"]
+        push!(FLAGS, debug ? "-ljulia-debug" : "-ljulia")
+    end
 
     push!(FLAGS, "-shared")
-    push!(FLAGS, debug ? "-ljulia-debug" : "-ljulia")
     if is_windows()
         push!(FLAGS, "-lssp")
     end

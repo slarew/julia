@@ -429,6 +429,169 @@ endif
 	mkdir -p $(DESTDIR)$(sysconfdir)
 	cp -R $(build_sysconfdir)/julia $(DESTDIR)$(sysconfdir)/
 
+$(DESTDIR)$(prefix)/$(framework_directory): $(JULIA_BUILD_MODE) $(build_depsbindir)/stringreplace $(BUILDROOT)/doc/_build/html
+ifneq ($(DARWIN_FRAMEWORK), 1)
+	$(error Darwin framework is not enabled. Please set DARWIN_FRAMEWORK=1.)
+endif
+
+	rm -rf $@
+
+	# Create basic directory structure.
+	@for subdir in $(bindir) $(libexecdir) $(libdir) $(datarootdir) $(docdir) $(mandir) $(man1dir) $(includedir) $(sysconfdir) $(private_libdir); do \
+		mkdir -p $(DESTDIR)$$subdir; \
+	done
+
+	# Create symlinks to current framework version.
+	ln -s Versions/Current/$(framework_name) $(DESTDIR)$(prefix)/$(framework_directory)/$(framework_name)
+	ln -s Versions/Current/Headers $(DESTDIR)$(prefix)/$(framework_directory)/Headers
+	ln -s Versions/Current/Documentation $(DESTDIR)$(prefix)/$(framework_directory)/Documentation
+	ln -s Versions/Current/Resources $(DESTDIR)$(prefix)/$(framework_directory)/Resources
+	ln -s Versions/Current/Frameworks $(DESTDIR)$(prefix)/$(framework_directory)/Frameworks
+	ln -s Versions/Current/Modules $(DESTDIR)$(prefix)/$(framework_directory)/Modules
+	ln -s Versions/Current/Helpers $(DESTDIR)$(prefix)/$(framework_directory)/Helpers
+	ln -s $(SOMAJOR) $(DESTDIR)$(prefix)/$(framework_versions)/Current
+
+	# Create a stub include/julia linking to the Headers directory.
+
+	# Create the Info.plist.
+	/usr/libexec/PlistBuddy -x -c "Clear dict" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleName string $(framework_name)" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleExecutable string $(framework_name)" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleIdentifier string $(framework_bundleidentifier)" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleVersion string $(JULIA_MAJOR_VERSION).$(JULIA_MINOR_VERSION).$(JULIA_PATCH_VERSION)" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleSignature string ???" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundlePackageType string FMWK" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :CFBundleInfoDictionaryVersion string 6.0" $(DESTDIR)$(prefix)/$(framework_infoplist)
+	/usr/libexec/PlistBuddy -x -c "Add :NSHumanReadableCopyright string \"See LICENSE.md in Resources folder.\"" $(DESTDIR)$(prefix)/$(framework_infoplist)
+
+	# Install the julia executable.
+	$(INSTALL_M) $(JULIA_EXECUTABLE) $(DESTDIR)$(bindir)/julia
+ifeq ($(JULIA_BUILD_MODE),debug)
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia-debug.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia
+else
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia
+endif
+	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/julia
+
+	#cp -R $(build_libexecdir)/ $(DESTDIR)$(libexecdir)
+
+	# Install the Julia (formerly known as libjulia) library
+ifeq ($(JULIA_BUILD_MODE),debug)
+	$(INSTALL_M) $(build_libdir)/libjulia-debug.$(SOMAJOR).$(SOMINOR).$(SHLIB_EXT) $(DESTDIR)$(prefix)/$(framework_dylib)
+else
+	$(INSTALL_M) $(build_libdir)/libjulia.$(SOMAJOR).$(SOMINOR).$(SHLIB_EXT) $(DESTDIR)$(prefix)/$(framework_dylib)
+endif
+	$(INSTALL_NAME_CMD)$(framework_dylib) $(DESTDIR)$(prefix)/$(framework_dylib)
+	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(prefix)/$(framework_dylib)
+	# Tell Julia where to find private libraries
+	# Add /L/J/lib rpath first so that private libraries may be substituted/overridden.
+	install_name_tool -add_rpath /Library/$(framework_name)/lib $(DESTDIR)$(prefix)/$(framework_dylib)
+	install_name_tool -add_rpath @loader_path/Frameworks $(DESTDIR)$(prefix)/$(framework_dylib)
+
+	# Install the private libraries. NB: filter out libpcre2-posix*
+	for suffix in $(JL_PRIVATE_LIBS) ; do \
+		for lib in $(build_libdir)/lib$${suffix}*.$(SHLIB_EXT)*; do \
+			if [ "$${lib##*.}" != "dSYM" -a \
+			"$$(basename $$lib)" != "libpcre2-posix.0.dylib" -a \
+			"$$(basename $$lib)" != "libpcre2-posix.dylib" ]; then \
+				$(INSTALL_M) $$lib $(DESTDIR)$(private_libdir) ; \
+			fi \
+		done \
+	done
+
+	# Copy in libgcc/libgfortran/libquadmath and fix install names with @rpath prefixes
+	$(JULIAHOME)/contrib/fixup-libgfortran.sh $(DESTDIR)$(private_libdir)
+
+	# Delete all rpaths in the private libraries
+	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(private_libdir)/*
+
+	# Headers
+	mkdir $(DESTDIR)$(includedir)/julia
+	$(INSTALL_F) $(build_includedir)/uv* $(DESTDIR)$(includedir)/julia
+	$(INSTALL_F) $(addprefix $(JULIAHOME)/,src/julia.h src/julia_threads.h src/support/*.h) $(DESTDIR)$(includedir)/julia
+	$(INSTALL_F) $(BUILDROOT)/src/julia_version.h $(DESTDIR)$(includedir)/julia
+	sed -e 's/<Julia/<$(framework_name)/' $(JULIAHOME)/contrib/mac/framework/Julia.h > $(DESTDIR)$(includedir)/$(framework_name).h
+
+	# Copy system image
+	-$(INSTALL_F) $(build_private_libdir)/sys.ji $(DESTDIR)$(private_libdir)
+ifeq ($(JULIA_BUILD_MODE),debug)
+	$(INSTALL_M) $(build_private_libdir)/sys-debug.$(SHLIB_EXT) $(DESTDIR)$(private_libdir)
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia-debug.dylib @rpath/$(framework_name) $(DESTDIR)$(private_libdir)/sys-debug.dylib
+	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(private_libdir)/sys-debug.dylib
+	install_name_tool -add_rpath @loader_path/.. $(DESTDIR)$(private_libdir)/sys-debug.dylib
+else
+	$(INSTALL_M) $(build_private_libdir)/sys.$(SHLIB_EXT) $(DESTDIR)$(private_libdir)
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia.dylib @rpath/$(framework_name) $(DESTDIR)$(private_libdir)/sys.dylib
+	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(private_libdir)/sys.dylib
+	install_name_tool -add_rpath @loader_path/.. $(DESTDIR)$(private_libdir)/sys.dylib
+endif
+
+	# Copy documentation
+	cp -R $(build_docdir)/* $(DESTDIR)$(docdir)/
+	cp -R -L $(BUILDROOT)/doc/_build/html $(DESTDIR)$(docdir)/
+	-rm $(DESTDIR)$(docdir)/html/.buildinfo
+
+	# Copy in all .jl source
+	cp -R -L $(build_datarootdir)/julia $(DESTDIR)$(datarootdir)
+	# Copy in system image build script
+	$(INSTALL_M) $(JULIAHOME)/contrib/build_sysimg.jl $(DESTDIR)$(datarootdir)/julia
+	# Copy in standalone julia-config script
+	$(INSTALL_M) $(JULIAHOME)/contrib/mac/framework/julia-config.jl $(DESTDIR)$(datarootdir)/julia
+	# Remove perf suite
+	rm -rf $(DESTDIR)$(datarootdir)/julia/test/perf/
+	# Remove various files which should not be installed
+	rm -f $(DESTDIR)$(datarootdir)/julia/base/version_git.sh
+	rm -f $(DESTDIR)$(datarootdir)/julia/base/Makefile
+	rm -f $(DESTDIR)$(datarootdir)/julia/test/Makefile
+	find $(DESTDIR)$(prefix)/$(framework_directory) -type f -name '.DS_Store' -o -type d -name '__MACOSX' -o -type f -name '.git*' -print0 | xargs -0 rm -rf
+	# Copy in beautiful new man page
+	$(INSTALL_F) $(build_man1dir)/julia.1 $(DESTDIR)$(man1dir)/
+
+	# Update JL_SYSTEM_IMAGE_PATH if $(private_libdir_rel) != $(build_private_libdir_rel)
+ifneq ($(private_libdir_rel),$(build_private_libdir_rel))
+	# Overwrite JL_SYSTEM_IMAGE_PATH in julia library
+ifeq ($(JULIA_BUILD_MODE),debug)
+	$(call stringreplace,$(DESTDIR)$(prefix)/$(framework_dylib),sys-debug.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys-debug.$(SHLIB_EXT))
+else
+	$(call stringreplace,$(DESTDIR)$(prefix)/$(framework_dylib),sys.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys.$(SHLIB_EXT))
+endif
+endif
+	
+	# Include Julia's license info
+	$(INSTALL_F) $(JULIAHOME)/LICENSE.md $(DESTDIR)$(prefix)/$(framework_resources)
+
+ifeq ($(JULIA_BUILD_MODE),debug)
+	# Leave a visible trace file indicating a debug build.
+	touch $(DESTDIR)$(prefix)/$(framework_resources)/DEBUGBUILD
+endif
+
+	# Add the module map file.  (Required for Swift?)
+	mkdir $(DESTDIR)$(prefix)/$(framework_currver)/Modules
+	$(INSTALL_F) $(JULIAHOME)/contrib/mac/framework/module.modulemap $(DESTDIR)$(prefix)/$(framework_currver)/Modules/module.modulemap
+
+	# Make sure EUID:EGID owns the framework
+	chown -R $$(id -un):$$(id -gn) $(DESTDIR)$(prefix)/$(framework_directory)
+
+	# ad-hoc codesigning
+	#NB: must be the last lines of the recipe, else signature may be invalidated.
+
+	# Codesign should look at the embedded Info.plist to get the signing identifier.
+	# See JLDFLAGS in Make.inc for Darwin platform and Info.plist target in ui/Makefile.
+	codesign -s $(apple_codesign_keychain_identity) --timestamp=none -v $(DESTDIR)$(bindir)/julia
+
+	# Append the library name to the base codesigning id.
+	for file in $(DESTDIR)$(private_libdir)/*.dylib* ; do \
+		if [ -f "$$file" -a ! -L "$$file" -a -w "$$file" -a -x "$$file" ]; then \
+			idsuffix=$$(basename $${file%%.dylib*}) ; \
+			codesign -s $(apple_codesign_keychain_identity) -v --timestamp=none -i $(apple_codesign_id_julia_deps).$${idsuffix} -f $$file ; \
+		fi \
+	done
+
+	# Sign the (current version) framework bundle.
+	codesign -s $(apple_codesign_keychain_identity) -v --timestamp=none $(DESTDIR)$(prefix)/$(framework_currver)
+
+framework: $(DESTDIR)$(prefix)/$(framework_directory)
+
 distclean dist-clean:
 	-rm -fr $(BUILDROOT)/julia-*.tar.gz $(BUILDROOT)/julia*.exe $(BUILDROOT)/julia-*.7z $(BUILDROOT)/julia-$(JULIA_COMMIT)
 
@@ -565,7 +728,8 @@ distcleanall: cleanall
 	test testall testall1 test clean distcleanall cleanall clean-* \
 	run-julia run-julia-debug run-julia-release run \
 	install binary-dist light-source-dist.tmp light-source-dist \
-	dist full-source-dist source-dist
+	dist full-source-dist source-dist \
+	framework
 
 test: check-whitespace $(JULIA_BUILD_MODE)
 	@$(MAKE) $(QUIET_MAKE) -C $(BUILDROOT)/test default JULIA_BUILD_MODE=$(JULIA_BUILD_MODE)

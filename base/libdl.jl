@@ -14,7 +14,31 @@ order, before searching the system locations for a valid library handle.
 """
 const DL_LOAD_PATH = String[]
 if is_apple()
-    push!(DL_LOAD_PATH, "@loader_path/julia")
+    if Base.DARWIN_FRAMEWORK 
+        # For the framework target, allow the user to override the built-in libraries.
+        # Preference order: User, System, Julia.framework/Frameworks
+
+        #TODO: add version (i.e. vX.Y) to the /Library/Julia paths.
+
+        if haskey(ENV,"HOME")
+            # Add the User domain: $HOME/Library/Julia/lib
+            # Note that $HOME is likely *not* /Users/foo
+            # if the application sandbox is enabled.
+
+            # Append trailing / if missing.
+            homedir = ENV["HOME"]
+            homedir[end] == '/' ? Void : homedir=string(homedir,"/")
+            push!(DL_LOAD_PATH, string(homedir,"Library/",Base.DARWIN_FRAMEWORK_NAME,"/lib"))
+        end
+
+        # Add the System domain: /Library/Julia/lib
+        push!(DL_LOAD_PATH, string("/Library/",Base.DARWIN_FRAMEWORK_NAME,"/lib"))
+
+        # Add Julia.framework/Frameworks
+        push!(DL_LOAD_PATH, "@loader_path/Frameworks")
+    else
+        push!(DL_LOAD_PATH, "@loader_path/julia")
+    end
     push!(DL_LOAD_PATH, "@loader_path")
 end
 
