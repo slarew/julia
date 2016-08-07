@@ -52,8 +52,13 @@ function init_load_path()
     if haskey(ENV, "JULIA_LOAD_PATH")
         prepend!(LOAD_PATH, split(ENV["JULIA_LOAD_PATH"], @static is_windows() ? ';' : ':'))
     end
-    push!(LOAD_PATH, abspath(JULIA_HOME, "..", "local", "share", "julia", "site", vers))
-    push!(LOAD_PATH, abspath(JULIA_HOME, "..", "share", "julia", "site", vers))
+    if Base.DARWIN_FRAMEWORK
+        push!(LOAD_PATH, abspath(homedir(),"Library/Julia/site",vers))
+        push!(LOAD_PATH, abspath("/Library/Julia/site",vers))
+    else
+        push!(LOAD_PATH, abspath(JULIA_HOME, "..", "local", "share", "julia", "site", vers))
+        push!(LOAD_PATH, abspath(JULIA_HOME, "..", "share", "julia", "site", vers))
+    end
     #push!(LOAD_CACHE_PATH, abspath(JULIA_HOME, "..", "lib", "julia")) #TODO: add a builtin location?
 end
 

@@ -91,11 +91,8 @@ so that, e.g., version 0.6 of Julia on a Linux system with a Julia executable at
 The path of the parent directory `Pkg.Dir._pkgroot()` for the version-specific
 Julia package repositories. If the path is relative, then it is taken with
 respect to the working directory. If `$JULIA_PKGDIR` is not set, then
-`Pkg.Dir._pkgroot()` defaults to
-
-```
-$HOME/.julia
-```
+`Pkg.Dir._pkgroot()` defaults to `$HOME/.julia` (`$HOME/Library/Julia` on Apple
+ platforms).
 
 Then the repository location [`Pkg.dir`](@ref) for a given Julia version is
 

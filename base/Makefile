@@ -64,6 +64,12 @@ endif
 	@echo "const LIBDIR = \"$(libdir_rel)\"" >> $@
 	@echo "const PRIVATE_LIBDIR = \"$(private_libdir_rel)\"" >> $@
 	@echo "const INCLUDEDIR = \"$(includedir_rel)\"" >> $@
+ifeq ($(DARWIN_FRAMEWORK), 1)
+	@echo "const DARWIN_FRAMEWORK = true" >> $@
+	@echo "const DARWIN_FRAMEWORK_NAME = \"$(FRAMEWORK_NAME)\"" >> $@
+else
+	@echo "const DARWIN_FRAMEWORK = false" >> $@
+endif
 
 	@# This to ensure that we always rebuild this file, but only when it is modified do we touch build_h.jl,
 	@# ensuring we rebuild the system image as infrequently as possible

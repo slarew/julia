@@ -669,7 +669,8 @@ compilecache(mod::Symbol) = compilecache(string(mod))
 Creates a precompiled cache file for
 a module and all of its dependencies.
 This can be used to reduce package load times. Cache files are stored in
-`LOAD_CACHE_PATH[1]`, which defaults to `~/.julia/lib/VERSION`. See
+`LOAD_CACHE_PATH[1]`, which defaults to `~/.julia/lib/VERSION`
+(`~/Library/Julia/lib/VERSION` on Apple platforms). See
 [Module initialization and precompilation](@ref)
 for important notes.
 """

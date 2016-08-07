@@ -168,7 +168,7 @@ latest version.
 
 ## Uninstalling Julia
 
-Julia does not install anything outside the directory it was cloned into. Julia can be completely uninstalled by deleting this directory. Julia packages are installed in `~/.julia` by default, and can be uninstalled by deleting `~/.julia`.
+Julia does not install anything outside the directory it was cloned into. Julia can be completely uninstalled by deleting this directory. Julia packages are installed in `~/.julia` (`~/Library/Julia` on macOS) by default, and can be uninstalled by deleting `~/.julia` (`~/Library/Julia` on macOS).
 
 ## Platform-Specific Build Notes
 

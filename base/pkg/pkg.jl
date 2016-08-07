@@ -56,8 +56,9 @@ splitjl(pkg::AbstractString) = endswith(pkg, PKGEXT) ? pkg[1:(end-length(PKGEXT)
     dir() -> AbstractString
 
 Returns the absolute path of the package directory. This defaults to
-`joinpath(homedir(),".julia","v\$(VERSION.major).\$(VERSION.minor)")` on all platforms (i.e.
-`~/.julia/v$(VERSION.major).$(VERSION.minor)` in UNIX shell syntax). If the `JULIA_PKGDIR`
+`joinpath(homedir(),".julia","v\$(VERSION.major).\$(VERSION.minor)")` (i.e.
+`~/.julia/v$(VERSION.major).$(VERSION.minor)` in UNIX shell syntax), except Apple platforms,
+which exchange `.julia` for `Library/Julia`. If the `JULIA_PKGDIR`
 environment variable is set, then that path is used in the returned value as
 `joinpath(ENV["JULIA_PKGDIR"],"v\$(VERSION.major).\$(VERSION.minor)")`. If `JULIA_PKGDIR` is
 a relative path, it is interpreted relative to whatever the current working directory is.
