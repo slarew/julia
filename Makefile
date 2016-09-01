@@ -579,18 +579,18 @@ endif
 
 	# Codesign should look at the embedded Info.plist to get the signing identifier.
 	# See JLDFLAGS in Make.inc for Darwin platform and Info.plist target in ui/Makefile.
-	codesign -s $(apple_codesign_keychain_identity) --timestamp=none -v $(DESTDIR)$(bindir)/julia
+	codesign -s $(apple_codesign_keychain_identity) -v $(DESTDIR)$(bindir)/julia
 
 	# Append the library name to the base codesigning id.
 	for file in $(DESTDIR)$(private_libdir)/*.dylib* ; do \
 		if [ -f "$$file" -a ! -L "$$file" -a -w "$$file" -a -x "$$file" ]; then \
 			idsuffix=$$(basename $${file%%.dylib*}) ; \
-			codesign -s $(apple_codesign_keychain_identity) -v --timestamp=none -i $(apple_codesign_id_julia_deps).$${idsuffix} -f $$file ; \
+			codesign -s $(apple_codesign_keychain_identity) -v -i $(apple_codesign_id_julia_deps).$${idsuffix} -f $$file ; \
 		fi \
 	done
 
 	# Sign the (current version) framework bundle.
-	codesign -s $(apple_codesign_keychain_identity) -v --timestamp=none $(DESTDIR)$(prefix)/$(framework_currver)
+	codesign -s $(apple_codesign_keychain_identity) -v $(DESTDIR)$(prefix)/$(framework_currver)
 
 framework: $(DESTDIR)$(prefix)/$(framework_directory)
 
