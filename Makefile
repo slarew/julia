@@ -533,6 +533,8 @@ endif
 
 	# Copy in all .jl source
 	cp -R -L $(build_datarootdir)/julia $(DESTDIR)$(datarootdir)
+	cp -R -L $(JULIAHOME)/base/* $(DESTDIR)$(datarootdir)/julia/base
+	cp -R -L $(JULIAHOME)/test/* $(DESTDIR)$(datarootdir)/julia/test
 	# Copy in system image build script
 	$(INSTALL_M) $(JULIAHOME)/contrib/build_sysimg.jl $(DESTDIR)$(datarootdir)/julia
 	# Copy in standalone julia-config script
