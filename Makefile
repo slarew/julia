@@ -574,7 +574,8 @@ endif
 
 	# Codesign should look at the embedded Info.plist to get the signing identifier.
 	# See JLDFLAGS in Make.inc for Darwin platform and Info.plist target in ui/Makefile.
-	codesign -s $(apple_codesign_keychain_identity) -v $(DESTDIR)$(bindir)/julia
+	#TODO: add ui/julia.entitlements dependency
+	codesign -s $(apple_codesign_keychain_identity) --entitlements=$(JULIAHOME)/ui/julia.entitlements -v $(DESTDIR)$(bindir)/julia
 
 	# Append the library name to the base codesigning id.
 	for file in $(DESTDIR)$(private_libdir)/*.dylib* ; do \

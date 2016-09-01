@@ -199,6 +199,9 @@ apple_codesign_keychain_identity := -
 apple_codesign_id_julia_ui = $(framework_bundleidentifier_base)
 apple_codesign_id_julia_deps = $(framework_bundleidentifier_base).deps
 
+# Add entitlements to julia to enable app sandbox.
+apple_codesign_sandbox_julia_ui := 0
+
 # Directories where said libraries get installed to
 ifeq ($(DARWIN_FRAMEWORK), 1)
 prefix ?= $(abspath .)
