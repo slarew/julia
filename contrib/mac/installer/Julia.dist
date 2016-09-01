@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<installer-gui-script minSpecVersion="2">
+    <title>FRAMEWORK_NAME</title>
+    <background file="logo_hires.png" mime-type="image/png" alignment="bottomleft" scaling="proportional"/>
+    <readme file="readme.rtf" mime-type="text/rtf"/>
+    <conclusion file="conclusion.rtf" mime-type="text/rtf"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="MINVERSION" />
+        </allowed-os-versions>
+    </volume-check>
+    <options customize="always" require-scripts="false" hostArchitectures="x86_64"/>
+    <domains enable_localSystem="true" enable_anywhere="true" enable_currentUserHome="true"/>
+    <pkg-ref id="org.julialang.julia.lib" onConclusion="none">FRAMEWORK_NAME-framework.pkg</pkg-ref>
+    <choice id="org.julialang.julia.lib" selected="true" visible="true" enabled="false" description="The Julia language distribution bundled as a framework." title="Julia framework">
+        <pkg-ref id="org.julialang.julia.lib"/>
+    </choice>
+    <choices-outline>
+        <line choice="org.julialang.julia.lib"/>
+    </choices-outline>
+</installer-gui-script>
