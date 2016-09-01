@@ -1,0 +1,107 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1504\cocoasubrtf830
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 LucidaGrande;
+}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red249\green249\blue249;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c98039\c98039\c98039;}
+{\info
+{\author Stephen Larew}}\margl1440\margr1440\vieww14400\viewh9600\viewkind0
+\deftab720
+\pard\pardeftab720\sb120\sa200\partightenfactor0
+
+\f0\b\fs40 \cf0 \expnd0\expndtw0\kerning0
+Conclusion\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\b0\fs28 \cf0 Julia is now installed. The 
+\f1 \cb3 julia
+\f0 \cb1  executable is located at 
+\f1 \cb3 Julia.framework/Helpers/julia
+\f0 \cb1  inside the Julia framework. In a shell, run\
+\pard\pardeftab720\partightenfactor0
+
+\f1 \cf0 \cb3 mdfind "kMDItemCFBundleIdentifier == 'org.julialang.julia.lib' && kMDItemContentType == 'com.apple.framework'"\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\f0 \cf0 \cb1 to find the Julia frameworks on your system. Alternatively, search for \'93julia\'94 with Spotlight or run\
+\pard\pardeftab720\partightenfactor0
+
+\f1 \cf0 \cb3 mdfind "kMDItemFSName == 'julia' && kMDItemContentType == 'public.data'"\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\f0 \cf0 \cb1 to find julia executables on your system. (The commands assume the files are indexed and searchable by Spotlight.)\
+\pard\pardeftab720\sb120\sa200\partightenfactor0
+
+\b\fs40 \cf0 Uninstall\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\b0\fs28 \cf0 To uninstall, simply remove 
+\f1 \cb3 Julia.framework
+\f0 \cb1  (e.g. move it to the Trash in Finder or use the 
+\f1 \cb3 rm
+\f0 \cb1  program from a shell).\
+\pard\pardeftab720\sb120\sa200\partightenfactor0
+
+\b\fs40 \cf0 Path Modification\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\b0\fs28 \cf0 In order for the shell to find and run the 
+\f1 \cb3 julia
+\f0 \cb1  command, the 
+\f1 \cb3 PATH
+\f0 \cb1  environment variable must contain the path to the 
+\f1 \cb3 julia
+\f0 \cb1  binary. Either add 
+\f1 \cb3 INSTALL_LOCATION/Julia.framework/Helpers
+\f0 \cb1  to 
+\f1 \cb3 PATH
+\f0 \cb1 , for example in Bash shell\
+\pard\pardeftab720\partightenfactor0
+
+\f1 \cf0 \cb3 export PATH=INSTALL_LOCATION/Julia.framework/Helpers:$PATH\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\f0 \cf0 \cb1 or link a file in 
+\f1 \cb3 PATH
+\f0 \cb1  to 
+\f1 \cb3 INSTALL_LOCATION/Julia.framework/Helpers/julia
+\f0 \cb1 , for example by creating a symlink with 
+\f1 \cb3 ln
+\f0 \cb1 \
+\pard\pardeftab720\partightenfactor0
+
+\f1 \cf0 \cb3 ln -s INSTALL_LOCATION/Julia.framework/Helpers/julia DIR_IN_PATH/julia\
+\pard\pardeftab720\sb120\sa200\partightenfactor0
+
+\f0\b\fs40 \cf0 \cb1 Native system image\
+\pard\pardeftab720\sb80\sa120\partightenfactor0
+
+\b0\fs28 \cf0 The Julia system image distributed in this installer is not optimized for this system. The 
+\f1 \cb3 build_sysimg.jl
+\f0 \cb1  script is provided to build an customized system images. A custom system image that is optimzied for this system may be built by running the Bash script below.\
+The script assumes 
+\f1 \cb3 julia
+\f0 \cb1  can be found in 
+\f1 \cb3 PATH
+\f0 \cb1 . It installs the system image in the user's local Julia data This method avoids building the system image as the root user. (
+\b Tip
+\b0 : Highlight the script lines, copy them [
+\f2 \uc0\u8984 
+\f0 C], and run 
+\f1 \cb3 pbpaste|bash -s
+\f0 \cb1 .)\
+\pard\pardeftab720\partightenfactor0
+
+\f1 \cf0 \cb3 #!/usr/bin/env bash\
+set -e\
+RESOURCES="$(julia -e "println(normpath(JULIA_HOME,Base.DATAROOTDIR))")"\
+SYSIMGNAME="sys-v$(julia -e "println(\\"\\$(Base.VERSION_STRING)-\\$(Base.GIT_VERSION_INFO.commit_short)\\")")"\
+SYSIMGDIR="$HOME/Library/Julia/sysimg"\
+cd "$(/usr/bin/mktemp -d -t juliasysimg)"\
+julia "$RESOURCES/julia/build_sysimg.jl" "$(pwd)/$SYSIMGNAME" native\
+mkdir -p "$SYSIMGDIR"\
+cp -f ./$SYSIMGNAME.dylib "$SYSIMGDIR"\
+echo "Build of optimized Julia system image finished.  Usage:"\
+echo "julia -J \\"$SYSIMGDIR/$SYSIMGNAME.dylib\\""\
+rm -rf ./*\
+rmdir "$(pwd)"\
+}
