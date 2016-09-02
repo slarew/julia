@@ -11,7 +11,7 @@ const options =
 threadingOn() = ccall(:jl_threading_enabled, Cint, ()) != 0
 
 function frameworkDir()
-    abspath(normpath(joinpath(dirname(Libdl.dlpath("Julia")),"..","..","..")))
+    abspath(normpath(joinpath(dirname(Libdl.dlpath(Base.DARWIN_FRAMEWORK_NAME)),"..","..","..")))
 end
 
 function ldflags()
@@ -19,7 +19,7 @@ function ldflags()
 end
 
 function ldlibs()
-    return "-framework Julia"
+    return "-framework $(Base.DARWIN_FRAMEWORK_NAME)"
 end
 
 function cflags()

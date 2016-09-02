@@ -569,7 +569,7 @@ endif
 
 	# Add the module map file.  (Required for Swift?)
 	mkdir $(DESTDIR)$(prefix)/$(framework_currver)/Modules
-	$(INSTALL_F) $(JULIAHOME)/contrib/mac/framework/module.modulemap $(DESTDIR)$(prefix)/$(framework_currver)/Modules/module.modulemap
+	sed -e 's/Julia/$(framework_name)/' $(JULIAHOME)/contrib/mac/framework/module.modulemap > $(DESTDIR)$(prefix)/$(framework_currver)/Modules/module.modulemap
 
 	# Make sure EUID:EGID owns the framework
 	chown -R $$(id -un):$$(id -gn) $(DESTDIR)$(prefix)/$(framework_directory)
