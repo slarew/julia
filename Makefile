@@ -451,8 +451,6 @@ endif
 	ln -s Versions/Current/Helpers $(DESTDIR)$(prefix)/$(framework_directory)/Helpers
 	ln -s $(SOMAJOR) $(DESTDIR)$(prefix)/$(framework_versions)/Current
 
-	# Create a stub include/julia linking to the Headers directory.
-
 	# Create the Info.plist.
 	/usr/libexec/PlistBuddy -x -c "Clear dict" $(DESTDIR)$(prefix)/$(framework_infoplist)
 	/usr/libexec/PlistBuddy -x -c "Add :CFBundleName string $(framework_name)" $(DESTDIR)$(prefix)/$(framework_infoplist)
@@ -472,8 +470,6 @@ else
 	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia
 endif
 	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/julia
-
-	#cp -R $(build_libexecdir)/ $(DESTDIR)$(libexecdir)
 
 	# Install the Julia (formerly known as libjulia) library
 ifeq ($(JULIA_BUILD_MODE),debug)
@@ -513,7 +509,6 @@ endif
 	sed -e 's/<Julia/<$(framework_name)/' $(JULIAHOME)/contrib/mac/framework/Julia.h > $(DESTDIR)$(includedir)/$(framework_name).h
 
 	# Copy system image
-	-$(INSTALL_F) $(build_private_libdir)/sys.ji $(DESTDIR)$(private_libdir)
 ifeq ($(JULIA_BUILD_MODE),debug)
 	$(INSTALL_M) $(build_private_libdir)/sys-debug.$(SHLIB_EXT) $(DESTDIR)$(private_libdir)
 	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia-debug.dylib @rpath/$(framework_name) $(DESTDIR)$(private_libdir)/sys-debug.dylib
