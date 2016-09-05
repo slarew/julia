@@ -449,7 +449,7 @@ endif
 	ln -s Versions/Current/Frameworks $(DESTDIR)$(prefix)/$(framework_directory)/Frameworks
 	ln -s Versions/Current/Modules $(DESTDIR)$(prefix)/$(framework_directory)/Modules
 	ln -s Versions/Current/Helpers $(DESTDIR)$(prefix)/$(framework_directory)/Helpers
-	ln -s $(SOMAJOR) $(DESTDIR)$(prefix)/$(framework_versions)/Current
+	ln -s $(framework_version) $(DESTDIR)$(prefix)/$(framework_versions)/Current
 
 	# Create the Info.plist.
 	/usr/libexec/PlistBuddy -x -c "Clear dict" $(DESTDIR)$(prefix)/$(framework_infoplist)

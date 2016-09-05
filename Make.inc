@@ -176,10 +176,11 @@ DARWIN_FRAMEWORK ?= 0
 
 framework_name ?= Julia
 framework_bundleidentifier ?= org.julialang.julia
+framework_version ?= $(SOMAJOR)
 
 framework_directory:=$(framework_name).framework
 framework_versions:=$(framework_directory)/Versions
-framework_currver:=$(framework_versions)/$(SOMAJOR)
+framework_currver:=$(framework_versions)/$(framework_version)
 framework_dylib:=$(framework_currver)/$(framework_name)
 framework_headers:=$(framework_currver)/Headers
 framework_documentation:=$(framework_currver)/Documentation
