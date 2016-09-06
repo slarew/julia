@@ -171,13 +171,16 @@ endif
 # Whether to use GPL libraries or not.
 USE_GPL_LIBS ?= 1
 
-# Whether to install Julia as a framework on Apple platforms.
+# Whether to install Julia as a framework on Darwin (Apple) platforms.
 DARWIN_FRAMEWORK ?= 0
 
+# Override in Make.inc to customize the framework:
 framework_name ?= Julia
-framework_bundleidentifier ?= org.julialang.julia
+framework_bundleidentifier_base ?= org.julialang.julia
 framework_version ?= $(SOMAJOR)
 
+# Directories and file structure of a Darwin framework:
+framework_bundleidentifier=$(framework_bundleidentifier_base).lib
 framework_directory:=$(framework_name).framework
 framework_versions:=$(framework_directory)/Versions
 framework_currver:=$(framework_versions)/$(framework_version)
@@ -193,9 +196,8 @@ framework_infoplist:=$(framework_resources)/Info.plist
 apple_codesign_keychain_identity := -
 
 # By default, derive the codesign identifiers from the framework bundle id
-apple_codesign_id_julia ?= $(framework_bundleidentifier)
-apple_codesign_id_julia_ui = $(apple_codesign_id_julia).ui
-apple_codesign_id_julia_deps = $(apple_codesign_id_julia).deps
+apple_codesign_id_julia_ui = $(framework_bundleidentifier_base)
+apple_codesign_id_julia_deps = $(framework_bundleidentifier_base).deps
 
 # Directories where said libraries get installed to
 ifeq ($(DARWIN_FRAMEWORK), 1)
