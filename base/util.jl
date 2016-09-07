@@ -361,7 +361,7 @@ info(io::IO, err::Exception; prefix="ERROR: ", kw...) =
 info(err::Exception; prefix="ERROR: ", kw...) =
     info(STDERR, err, prefix=prefix; kw...)
 
-function julia_cmd(julia=joinpath(JULIA_HOME, julia_exename()))
+function julia_cmd(julia=joinpath(JULIA_HOME, Base.APPLE_APP_SANDBOX ? "julia-sandbox-inherit" : julia_exename()))
     opts = JLOptions()
     cpu_target = unsafe_string(opts.cpu_target)
     image_file = unsafe_string(opts.image_file)

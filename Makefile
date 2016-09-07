@@ -464,12 +464,16 @@ endif
 
 	# Install the julia executable.
 	$(INSTALL_M) $(JULIA_EXECUTABLE) $(DESTDIR)$(bindir)/julia
+	$(INSTALL_M) $(JULIA_EXECUTABLE) $(DESTDIR)$(bindir)/julia-sandbox-inherit
 ifeq ($(JULIA_BUILD_MODE),debug)
 	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia-debug.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia-debug.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia-sandbox-inherit
 else
 	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia.dylib @rpath/$(framework_name) $(DESTDIR)$(bindir)/julia-sandbox-inherit
 endif
 	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/julia
+	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/julia-sandbox-inherit
 
 	# Install the Julia (formerly known as libjulia) library
 ifeq ($(JULIA_BUILD_MODE),debug)
@@ -576,6 +580,7 @@ endif
 	# See JLDFLAGS in Make.inc for Darwin platform and Info.plist target in ui/Makefile.
 	#TODO: add ui/julia.entitlements dependency
 	codesign -s $(apple_codesign_keychain_identity) --entitlements=$(JULIAHOME)/ui/julia.entitlements -v $(DESTDIR)$(bindir)/julia
+	codesign -s $(apple_codesign_keychain_identity) --entitlements=$(JULIAHOME)/ui/julia_sandbox_inherit.entitlements -v $(DESTDIR)$(bindir)/julia-sandbox-inherit
 
 	# Append the library name to the base codesigning id.
 	for file in $(DESTDIR)$(private_libdir)/*.dylib* ; do \

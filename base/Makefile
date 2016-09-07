@@ -72,6 +72,11 @@ ifeq ($(DARWIN_FRAMEWORK), 1)
 else
 	@echo "const DARWIN_FRAMEWORK = false" >> $@
 endif
+ifeq ($(apple_codesign_sandbox_julia_ui), 1)
+	@echo "const APPLE_APP_SANDBOX = true" >> $@
+else
+	@echo "const APPLE_APP_SANDBOX = false" >> $@
+endif
 
 	@# This to ensure that we always rebuild this file, but only when it is modified do we touch build_h.jl,
 	@# ensuring we rebuild the system image as infrequently as possible
