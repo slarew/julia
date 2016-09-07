@@ -155,8 +155,13 @@ function longpath(path::AbstractString)
 end
 
 else # !windows
-function realpath(path::AbstractString)
-    p = ccall(:realpath, Ptr{UInt8}, (Cstring, Ptr{UInt8}), path, C_NULL)
+@eval function realpath(path::AbstractString)
+    # On Darwin/Apple systems, call the alternative implementation (preferred?)
+    # realpath$DARWIN_EXTSN instead of realpath.  See the manpage realpath(3) for
+    # more info.  The DARWIN_EXTSN version works in the App Sandbox.
+    p = ccall((@static is_apple() ?
+               $(Expr(:quote,Symbol("realpath\$DARWIN_EXTSN"))) : :realpath),
+              Ptr{UInt8}, (Cstring, Ptr{UInt8}), path, C_NULL)
     systemerror(:realpath, p == C_NULL)
     return unsafe_wrap(String, p, true)
 end
