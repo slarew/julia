@@ -449,13 +449,18 @@ DEBUGFLAGS := -O0 -g -DJL_DEBUG_BUILD -fstack-protector-all
 SHIPFLAGS := -O3 -g
 ifeq ($(OS), Darwin)
 ifeq ($(USE_LIBCPP), 1)
-MACOSX_DEPLOYMENT_TARGET ?= 10.8
+MACOSX_VERSION_MIN ?= 10.8
+ifneq ($(MACOSX_DEPLOYMENT_TARGET),)
+ifneq ($(MACOSX_DEPLOYMENT_TARGET),$(MACOSX_VERSION_MIN))
+$(error MACOSX_DEPLOYMENT_TARGET is set but does not match MACOSX_VERSION_MIN)
+endif
+endif
 # export MACOSX_DEPLOYMENT_TARGET so that ld picks it up, especially for deps
-export MACOSX_DEPLOYMENT_TARGET
+export MACOSX_DEPLOYMENT_TARGET=$(MACOSX_VERSION_MIN)
 #TODO: Check that MACOSX_DEPLOYMENT_TARGET is >= 10.7
-CC += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
-CXX += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
-FC += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+CC += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_VERSION_MIN)
+CXX += -stdlib=libc++ -mmacosx-version-min=$(MACOSX_VERSION_MIN)
+FC += -mmacosx-version-min=$(MACOSX_VERSION_MIN)
 else
 MACOSX_DEPLOYMENT_TARGET ?= 10.6
 export MACOSX_DEPLOYMENT_TARGET
