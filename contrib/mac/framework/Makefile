@@ -26,13 +26,6 @@ framework_destdirs := $(sort $(bindir) $(libdir) $(private_libdir) $(datarootdir
 framework_current_symlinks := $(addprefix $(DESTDIR)$(prefix)/$(framework_directory)/,$(FRAMEWORK_NAME) Headers Documentation Resources Frameworks Modules Helpers)
 framework_version_symlink := $(DESTDIR)$(prefix)/$(framework_versions)/Current
 
-# list of julia private libs for the framework
-framework_private_libs = $(sort $(filter-out libpcre2-posix.1.dylib libpcre2-posix.dylib,\
-  $(shell for suffix in $(JL_PRIVATE_LIBS) ; do \
-    for lib in $(build_libdir)/lib$${suffix}*.dylib; do \
-      echo $$(basename $$lib); \
-   done; done)))
-
 # targets:
 
 $(framework_destdirs):
@@ -82,82 +75,49 @@ $(DESTDIR)$(prefix)/$(framework_infoplist): | $(framework_destdirs)
 	/usr/libexec/PlistBuddy -x -c "Add :CFBundleInfoDictionaryVersion string 6.0" $@
 	/usr/libexec/PlistBuddy -x -c "Add :NSHumanReadableCopyright string \"Copyright © 2009-2017 Julia project contributors (https://github.com/JuliaLang/julia/contributors). See LICENSE.md.\"" $@
 
-# from top-level Makefile:
-define stringreplace
-	$(build_depsbindir)/stringreplace $$(strings -t x - $1 | grep '$2' | awk '{print $$1;}') '$3' 255 "$(call cygpath_w,$1)"
-endef
-
-
-framework: $(DESTDIR)$(prefix)/$(framework_infoplist) | $(framework_current_symlinks) $(framework_version_symlink) $(framework_destdirs) hier_symlinks
+toplevelinstall:
 ifneq ($(DARWIN_FRAMEWORK),1)
 	$(error Darwin framework is not enabled. Please set DARWIN_FRAMEWORK=1)
 endif
+	$(MAKE) -C $(BUILDROOT) install
 
-	$(MAKE) -C $(BUILDROOT) $(JULIA_BUILD_MODE) $(build_depsbindir)/stringreplace $(BUILDROOT)/doc/_build/html/en/index.html
+framework: toplevelinstall $(DESTDIR)$(prefix)/$(framework_infoplist) | $(framework_current_symlinks) $(framework_version_symlink) $(framework_destdirs) hier_symlinks
+	
+	# retain correct release/debug julia and fix paths
+	mv $(DESTDIR)$(bindir)/$(notdir $(JULIA_EXECUTABLE)) $(DESTDIR)$(bindir)/julia
+	[ -f $(DESTDIR)$(bindir)/julia-debug ] && rm $(DESTDIR)$(bindir)/julia-debug
+	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia$(JULIA_LIBSUFFIX).dylib @rpath/$(FRAMEWORK_NAME) $(DESTDIR)$(bindir)/julia
+	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(bindir)/julia
+	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/julia
 
-	# Add julia exe
-	$(INSTALL_M) $(JULIA_EXECUTABLE) $(DESTDIR)$(prefix)/$(framework_helpers)/julia
-	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia$(JULIA_LIBSUFFIX).dylib @rpath/$(FRAMEWORK_NAME) $(DESTDIR)$(prefix)/$(framework_helpers)/julia
-	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(prefix)/$(framework_helpers)/julia
-	install_name_tool -add_rpath @executable_path/$(libdir_rel) $(DESTDIR)$(prefix)/$(framework_helpers)/julia
-
-	# Add libjulia
-	$(INSTALL_M) $(build_shlibdir)/libjulia$(JULIA_LIBSUFFIX).$(SOMAJOR).$(SOMINOR).dylib $(DESTDIR)$(prefix)/$(framework_dylib)
+	# fix libjulia paths
 	$(INSTALL_NAME_CMD)$(framework_dylib) $(DESTDIR)$(prefix)/$(framework_dylib)
 	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(prefix)/$(framework_dylib)
 	install_name_tool -add_rpath @loader_path/Frameworks $(DESTDIR)$(prefix)/$(framework_dylib)
 
-	# Copy system image
-	$(INSTALL_M) $(build_private_libdir)/sys$(JULIA_LIBSUFFIX).$(SHLIB_EXT) $(DESTDIR)$(prefix)/$(framework_frameworks)
+	# retain correct system image and fix path
+	for lib in $(DESTDIR)$(private_libdir)/sys*.dylib; do \
+	  [ "$$lib" = "$(DESTDIR)$(private_libdir)/sys$(JULIA_LIBSUFFIX).dylib" ] || rm "$$lib" ; \
+	done
 	$(INSTALL_NAME_CHANGE_CMD) @rpath/libjulia$(JULIA_LIBSUFFIX).dylib @rpath/$(FRAMEWORK_NAME) $(DESTDIR)$(prefix)/$(framework_frameworks)/sys$(JULIA_LIBSUFFIX).dylib
 	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(prefix)/$(framework_frameworks)/sys$(JULIA_LIBSUFFIX).dylib
 	install_name_tool -add_rpath @loader_path/.. $(DESTDIR)$(prefix)/$(framework_frameworks)/sys$(JULIA_LIBSUFFIX).dylib
 
-	# Add private libs
-	for lib in $(addprefix $(build_shlibdir)/,$(framework_private_libs)); do \
-	  $(INSTALL_M) $$lib $(DESTDIR)$(prefix)/$(framework_frameworks); \
-	done
+	# fix private lib paths
 	$(JULIAHOME)/contrib/mac/framework/delete-all-rpaths.sh $(DESTDIR)$(prefix)/$(framework_frameworks)/*
 
 	$(JULIAHOME)/contrib/fixup-libgfortran.sh $(DESTDIR)$(prefix)/$(framework_frameworks)
 
-	# Add headers
-	$(INSTALL_F) $(build_includedir)/julia/* $(DESTDIR)$(prefix)/$(framework_headers)/julia
+	# Add framework header
 	sed -e 's/<Julia/<$(FRAMEWORK_NAME)/' $(JULIAHOME)/contrib/mac/framework/Julia.h > $(DESTDIR)$(prefix)/$(framework_headers)/$(FRAMEWORK_NAME).h
 
-	# Copy documentation
-	cp -R -L $(build_docdir)/* $(DESTDIR)$(prefix)/$(framework_documentation)
-	cp -R -L $(BUILDROOT)/doc/_build/html $(DESTDIR)$(prefix)/$(framework_documentation)
-
-	# Copy in all .jl source
-	cp -R -L $(build_datarootdir)/julia $(DESTDIR)$(prefix)/$(framework_resources)
-	cp -R -L $(JULIAHOME)/base/* $(DESTDIR)$(prefix)/$(framework_resources)/julia/base
-	cp -R -L $(JULIAHOME)/test/* $(DESTDIR)$(prefix)/$(framework_resources)/julia/test
-	# Copy in system image build script
-	$(INSTALL_M) $(JULIAHOME)/contrib/build_sysimg.jl $(DESTDIR)$(prefix)/$(framework_resources)/julia
-	# Copy in standalone julia-config script
-	$(INSTALL_M) $(JULIAHOME)/contrib/julia-config.jl $(DESTDIR)$(prefix)/$(framework_resources)/julia
-	# Remove perf suite
-	rm -rf $(DESTDIR)$(prefix)/$(framework_resources)/julia/test/perf
-	# Remove various files which should not be installed
-	rm $(DESTDIR)$(prefix)/$(framework_resources)/julia/base/version_git.sh
-	find $(DESTDIR)$(prefix)/$(framework_directory) -type f -name '.DS_Store' -o -type d -name '__MACOSX' -o -type f -name '.git*' -o -type f -name Makefile -print0 | xargs -0 rm -rf
-	# Copy in beautiful new man page
-	$(INSTALL_F) $(build_man1dir)/julia.1 $(DESTDIR)$(man1dir)/
-
-	# Update JL_SYSTEM_IMAGE_PATH if $(private_libdir_rel) != $(build_private_libdir_rel)
-ifneq ($(private_libdir_rel),$(build_private_libdir_rel))
-	# Overwrite JL_SYSTEM_IMAGE_PATH in julia library
-	$(call stringreplace,$(DESTDIR)$(prefix)/$(framework_dylib),sys$(JULIA_LIBSUFFIX).dylib$$,$(private_libdir_rel)/sys$(JULIA_LIBSUFFIX).dylib)
-endif
+	# cleanup unnecessary install outputs
+	rm $(DESTDIR)$(datarootdir)/julia/juliarc.jl
+	rm -rf $(DESTDIR)$(datarootdir)/julia/site $(DESTDIR)$(datarootdir)/icons $(DESTDIR)$(datarootdir)/applications $(DESTDIR)$(datarootdir)/appdata
+	find $(DESTDIR)$(prefix)/$(framework_directory) \( -name '.DS_Store' -o -name '.gitignore' -o -name Makefile \) -delete
 
 	# Include Julia's license info
 	$(INSTALL_F) $(JULIAHOME)/LICENSE.md $(DESTDIR)$(prefix)/$(framework_resources)
-
-ifeq ($(JULIA_BUILD_MODE),debug)
-	# Leave a visible trace file indicating a debug build.
-	touch $(DESTDIR)$(prefix)/$(framework_resources)/DEBUGBUILD
-endif
 
 	# Add the module map file.
 	sed -e 's/Julia/$(FRAMEWORK_NAME)/' $(JULIAHOME)/contrib/mac/framework/module.modulemap > $(DESTDIR)$(prefix)/$(framework_modules)/module.modulemap
@@ -184,4 +144,4 @@ endif
 	codesign -s $(DARWIN_CODESIGN_KEYCHAIN_IDENTITY) -v $(DESTDIR)$(prefix)/$(framework_currver)
 
 
-.PHONY: framework hier_symlinks
+.PHONY: toplevelinstall framework hier_symlinks

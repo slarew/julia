@@ -241,6 +241,86 @@ $(build_depsbindir)/stringreplace: $(JULIAHOME)/contrib/stringreplace.c | $(buil
 # public libraries, that are installed in $(prefix)/lib
 JL_LIBS := julia julia-debug
 
+# private libraries, that are installed in $(prefix)/lib/julia
+JL_PRIVATE_LIBS := ccalltest
+ifeq ($(USE_GPL_LIBS), 1)
+JL_PRIVATE_LIBS += suitesparse_wrapper
+endif
+ifeq ($(USE_SYSTEM_FFTW),0)
+ifeq ($(USE_GPL_LIBS), 1)
+JL_PRIVATE_LIBS += fftw3 fftw3f fftw3_threads fftw3f_threads
+endif
+endif
+ifeq ($(USE_SYSTEM_PCRE),0)
+JL_PRIVATE_LIBS += pcre
+endif
+ifeq ($(USE_SYSTEM_OPENLIBM),0)
+ifeq ($(USE_SYSTEM_LIBM),0)
+JL_PRIVATE_LIBS += openlibm
+endif
+endif
+ifeq ($(USE_SYSTEM_OPENSPECFUN),0)
+JL_PRIVATE_LIBS += openspecfun
+endif
+ifeq ($(USE_SYSTEM_DSFMT),0)
+JL_PRIVATE_LIBS += dSFMT
+endif
+ifeq ($(USE_SYSTEM_BLAS),0)
+JL_PRIVATE_LIBS += openblas
+else ifeq ($(USE_SYSTEM_LAPACK),0)
+JL_PRIVATE_LIBS += lapack
+endif
+ifeq ($(USE_SYSTEM_GMP),0)
+JL_PRIVATE_LIBS += gmp
+endif
+ifeq ($(USE_SYSTEM_MPFR),0)
+JL_PRIVATE_LIBS += mpfr
+endif
+ifeq ($(USE_SYSTEM_MBEDTLS),0)
+JL_PRIVATE_LIBS += mbedtls mbedcrypto mbedx509
+endif
+ifeq ($(USE_SYSTEM_LIBSSH2),0)
+JL_PRIVATE_LIBS += ssh2
+endif
+ifeq ($(USE_SYSTEM_CURL),0)
+JL_PRIVATE_LIBS += curl
+endif
+ifeq ($(USE_SYSTEM_LIBGIT2),0)
+JL_PRIVATE_LIBS += git2
+endif
+ifeq ($(USE_SYSTEM_ARPACK),0)
+JL_PRIVATE_LIBS += arpack
+endif
+ifeq ($(USE_SYSTEM_SUITESPARSE),0)
+ifeq ($(USE_GPL_LIBS), 1)
+JL_PRIVATE_LIBS += amd camd ccolamd cholmod colamd umfpack spqr suitesparseconfig
+endif
+endif
+ifeq ($(USE_SYSTEM_LLVM),0)
+ifeq ($(USE_LLVM_SHLIB),1)
+JL_PRIVATE_LIBS += LLVM
+endif
+endif
+ifeq ($(OS),Darwin)
+ifeq ($(USE_SYSTEM_BLAS),1)
+ifeq ($(USE_SYSTEM_LAPACK),0)
+JL_PRIVATE_LIBS += gfortblas
+endif
+endif
+endif
+
+# Create list of private lib filenames (libs and their symlinks)
+# filter out unused libpcre2-posix from the list of private libs
+install_private_libs = $(sort $(filter-out libpcre2-posix.1.dylib libpcre2-posix.dylib, \
+  $(shell for suffix in $(JL_PRIVATE_LIBS); do \
+    for lib in $(build_libdir)/lib$${suffix}*.$(SHLIB_EXT)*; do \
+      [ "$${lib\#\#*.}" != "dSYM" ] && \
+      [ $$(basename $$lib) != libpcre2-posix.1.dylib ] && \
+      [ $$(basename $$lib) != libpcre2-posix.dylib ] && \
+      echo "$$lib"; \
+    done; \
+  done)))
+
 ifeq ($(OS),WINNT)
 define std_dll
 julia-deps: | $$(build_bindir)/lib$(1).dll $$(build_depsbindir)/lib$(1).dll
@@ -278,6 +358,7 @@ ifeq ($(OS),WINNT)
 	-$(INSTALL_M) $(build_libdir)/libjulia-debug.dll.a $(DESTDIR)$(libdir)/
 	-$(INSTALL_M) $(build_bindir)/libopenlibm.dll.a $(DESTDIR)$(libdir)/
 else
+ifneq ($(DARWIN_FRAMEWORK),1)
 ifeq ($(OS),Darwin)
 	# Copy over .dSYM directories directly
 	-cp -a $(build_libdir)/*.dSYM $(DESTDIR)$(libdir)
@@ -291,12 +372,12 @@ endif
 			fi \
 		done \
 	done
-	for suffix in $(JL_PRIVATE_LIBS) ; do \
-		for lib in $(build_libdir)/lib$${suffix}*.$(SHLIB_EXT)*; do \
-			if [ "$${lib##*.}" != "dSYM" ]; then \
-				$(INSTALL_M) $$lib $(DESTDIR)$(private_libdir) ; \
-			fi \
-		done \
+else
+	# libjulia in Darwin framework has special location and name
+	$(INSTALL_M) $(build_libdir)/libjulia$(JULIA_LIBSUFFIX).$(SOMAJOR).$(SOMINOR).dylib $(DESTDIR)$(prefix)/$(framework_dylib)
+endif
+	for lib in $(install_private_libs); do \
+	  $(INSTALL_M) $$lib $(DESTDIR)$(private_libdir) ; \
 	done
 endif
 
@@ -309,7 +390,10 @@ endif
 	# Copy in system image build script
 	$(INSTALL_M) $(JULIAHOME)/contrib/build_sysimg.jl $(DESTDIR)$(datarootdir)/julia/
 	# Copy in all .jl sources as well
-	cp -R -L $(build_datarootdir)/julia $(DESTDIR)$(datarootdir)/
+	mkdir -p $(DESTDIR)$(datarootdir)/julia/{base,test}
+	cp -R -L $(JULIAHOME)/base/* $(DESTDIR)$(datarootdir)/julia/base
+	cp -R -L $(JULIAHOME)/test/* $(DESTDIR)$(datarootdir)/julia/test
+	cp -R -L $(build_datarootdir)/julia/* $(DESTDIR)$(datarootdir)/julia
 	# Copy documentation
 	cp -R -L $(build_docdir)/* $(DESTDIR)$(docdir)/
 	cp -R -L $(BUILDROOT)/doc/_build/html $(DESTDIR)$(docdir)/
@@ -334,10 +418,12 @@ endif
 	# Update RPATH entries and JL_SYSTEM_IMAGE_PATH if $(private_libdir_rel) != $(build_private_libdir_rel)
 ifneq ($(private_libdir_rel),$(build_private_libdir_rel))
 ifeq ($(OS), Darwin)
+ifneq ($(DARWIN_FRAMEWORK),1)
 	for julia in $(DESTDIR)$(bindir)/julia* ; do \
 		install_name_tool -rpath @executable_path/$(build_private_libdir_rel) @executable_path/$(private_libdir_rel) $$julia; \
 		install_name_tool -add_rpath @executable_path/$(build_libdir_rel) @executable_path/$(libdir_rel) $$julia; \
 	done
+endif
 else ifeq ($(OS), Linux)
 	for julia in $(DESTDIR)$(bindir)/julia* ; do \
 		patchelf --set-rpath '$$ORIGIN/$(private_libdir_rel):$$ORIGIN/$(libdir_rel)' $$julia; \
@@ -345,8 +431,12 @@ else ifeq ($(OS), Linux)
 endif
 
 	# Overwrite JL_SYSTEM_IMAGE_PATH in julia library
+ifneq ($(DARWIN_FRAMEWORK),1)
 	$(call stringreplace,$(DESTDIR)$(libdir)/libjulia.$(SHLIB_EXT),sys.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys.$(SHLIB_EXT))
 	$(call stringreplace,$(DESTDIR)$(libdir)/libjulia-debug.$(SHLIB_EXT),sys-debug.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys-debug.$(SHLIB_EXT))
+else
+	$(call stringreplace,$(DESTDIR)$(prefix)/$(framework_dylib),sys.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys.$(SHLIB_EXT))
+endif
 endif
 
 	mkdir -p $(DESTDIR)$(sysconfdir)
