@@ -2,7 +2,8 @@
 empty!(LOAD_PATH)
 push!(LOAD_PATH, @__DIR__, "@stdlib")
 empty!(DEPOT_PATH)
-pushfirst!(DEPOT_PATH, joinpath(@__DIR__, "deps"))
+pushfirst!(DEPOT_PATH, joinpath(ENV["BUILDROOT"], "doc/deps"))
+
 using Pkg
 Pkg.instantiate()
 
@@ -148,7 +149,7 @@ end
 
 const render_pdf = "pdf" in ARGS
 makedocs(
-    build     = joinpath(@__DIR__, "_build", (render_pdf ? "pdf" : "html"), "en"),
+    build     = joinpath(ENV["BUILDROOT"], "doc/_build", (render_pdf ? "pdf" : "html"), "en"),
     modules   = [Base, Core, BuildSysImg, [Base.root_module(Base, stdlib.stdlib) for stdlib in STDLIB_DOCS]...],
     clean     = true,
     doctest   = ("doctest=fix" in ARGS) ? (:fix) : ("doctest=true" in ARGS) ? true : false,
