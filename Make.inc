@@ -178,8 +178,42 @@ endif
 # Whether to use GPL libraries or not.
 USE_GPL_LIBS ?= 1
 
+# Whether to install Julia as a framework on Darwin (Apple) platforms.
+DARWIN_FRAMEWORK ?= 0
+
+# Override in Make.user to customize the framework:
+FRAMEWORK_NAME ?= Julia
+FRAMEWORK_VERSION ?= $(SOMAJOR)
+
+# X.Y.Z or X.Y.Z-hash
+JULIA_VERSION_OPT_COMMIT:=$(shell [ $$(git describe --tags --exact-match 2>/dev/null) ] && echo $(JULIA_VERSION) || echo $(JULIA_VERSION)-$(JULIA_COMMIT))
+
+# Directories and file structure of a Darwin framework:
+framework_directory:=$(FRAMEWORK_NAME).framework
+framework_versions:=$(framework_directory)/Versions
+framework_currver:=$(framework_versions)/$(FRAMEWORK_VERSION)
+framework_dylib:=$(framework_currver)/$(FRAMEWORK_NAME)
+framework_headers:=$(framework_currver)/Headers
+framework_documentation:=$(framework_currver)/Documentation
+framework_resources:=$(framework_currver)/Resources
+framework_frameworks:=$(framework_currver)/Frameworks
+framework_modules:=$(framework_currver)/Modules
+framework_helpers:=$(framework_currver)/Helpers
+framework_infoplist:=$(framework_resources)/Info.plist
+
 # Directories where said libraries get installed to
 prefix ?= $(BUILDROOT)/julia-$(JULIA_COMMIT)
+ifeq ($(DARWIN_FRAMEWORK), 1)
+bindir := $(prefix)/$(framework_helpers)
+libdir := $(prefix)/$(framework_currver)
+libexecdir := $(prefix)/$(framework_helpers)
+datarootdir := $(prefix)/$(framework_resources)
+docdir := $(prefix)/$(framework_documentation)
+mandir := $(datarootdir)/man
+man1dir := $(mandir)/man1
+includedir := $(prefix)/$(framework_headers)
+sysconfdir := $(prefix)/$(framework_resources)
+else
 bindir := $(prefix)/bin
 libdir := $(prefix)/lib
 libexecdir := $(prefix)/libexec
@@ -189,6 +223,7 @@ mandir := $(datarootdir)/man
 man1dir := $(mandir)/man1
 includedir := $(prefix)/include
 sysconfdir := $(prefix)/etc
+endif
 
 # Directories where things get built into
 build_prefix := $(BUILDROOT)/usr
@@ -211,7 +246,11 @@ build_libdir := $(build_prefix)/lib/$(MULTIARCH)
 endif
 
 # Private library directories
+ifeq ($(DARWIN_FRAMEWORK), 1)
+private_libdir := $(prefix)/$(framework_frameworks)
+else
 private_libdir := $(libdir)/julia
+endif
 build_private_libdir := $(build_libdir)/julia
 
 # Calculate relative paths to libdir, private_libdir, datarootdir, and sysconfdir
@@ -436,6 +475,8 @@ MACOSX_VERSION_MIN := 10.6
 CC += $(STDLIBCPP_FLAG) -mmacosx-version-min=$(MACOSX_VERSION_MIN)
 CXX += $(STDLIBCPP_FLAG) -mmacosx-version-min=$(MACOSX_VERSION_MIN)
 endif
+# export MACOSX_DEPLOYMENT_TARGET so that ld picks it up, especially for deps
+export MACOSX_DEPLOYMENT_TARGET=$(MACOSX_VERSION_MIN)
 JCPPFLAGS += -D_LARGEFILE_SOURCE -D_DARWIN_USE_64_BIT_INODE=1
 endif
 endif
@@ -567,6 +608,12 @@ endif # FreeBSD
 
 ifneq ($(CC_BASE)$(CXX_BASE),$(shell echo $(CC) | cut -d' ' -f1)$(shell echo $(CXX) | cut -d' ' -f1))
     $(error Forgot override directive on CC or CXX in Make.user? Cowardly refusing to build)
+endif
+
+ifeq ($(DARWIN_FRAMEWORK),1)
+ifneq ($(OS), Darwin)
+	$(error Darwin framework cannot be enabled for non-Darwin OS)
+endif
 endif
 
 ifeq ($(SANITIZE),1)
@@ -1005,7 +1052,7 @@ JLIBLDFLAGS := -Wl,-Bsymbolic-functions
 else
 JLIBLDFLAGS :=
 endif
-else #Linux
+else ifneq ($(OS), Darwin)
 JLIBLDFLAGS :=
 endif
 
@@ -1027,11 +1074,13 @@ ifeq ($(OS), Darwin)
 INSTALL_NAME_CMD := install_name_tool -id $(INSTALL_NAME_ID_DIR)
 INSTALL_NAME_CHANGE_CMD := install_name_tool -change
 SHLIB_EXT := dylib
-OSLIBS += -ldl -Wl,-w -framework CoreFoundation -framework CoreServices $(LIBUNWIND)
+OSLIBS += $(LIBUNWIND)
 WHOLE_ARCHIVE := -Xlinker -all_load
 NO_WHOLE_ARCHIVE :=
-JLDFLAGS :=
+# Embed an Info.plist in the julia executable
+JLDFLAGS := -Wl,-sectcreate,__TEXT,__info_plist,Info.plist
 HAVE_SSP := 1
+JLIBLDFLAGS := -Wl,-compatibility_version,$(SOMAJOR) -Wl,-current_version,$(JULIA_MAJOR_VERSION).$(JULIA_MINOR_VERSION).$(JULIA_PATCH_VERSION)
 endif
 
 ifeq ($(OS), WINNT)

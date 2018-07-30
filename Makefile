@@ -336,6 +336,7 @@ endif
 else
 
 # Copy over .dSYM directories directly for Darwin
+ifneq ($(DARWIN_FRAMEWORK),1)
 ifeq ($(OS),Darwin)
 	-cp -a $(build_libdir)/libjulia.*.dSYM $(DESTDIR)$(libdir)
 	-cp -a $(build_private_libdir)/sys.dylib.dSYM $(DESTDIR)$(private_libdir)
@@ -352,6 +353,10 @@ endif
 			fi \
 		done \
 	done
+else
+	# libjulia in Darwin framework has special location and name
+	$(INSTALL_M) $(build_libdir)/libjulia$(JULIA_LIBSUFFIX).$(SOMAJOR).$(SOMINOR).dylib $(DESTDIR)$(prefix)/$(framework_dylib)
+endif
 	for suffix in $(JL_PRIVATE_LIBS-0) ; do \
 		for lib in $(build_libdir)/$${suffix}.*$(SHLIB_EXT)*; do \
 			if [ "$${lib##*.}" != "dSYM" ]; then \
@@ -375,7 +380,10 @@ endif
 	# Copy in system image build script
 	$(INSTALL_M) $(JULIAHOME)/contrib/build_sysimg.jl $(DESTDIR)$(datarootdir)/julia/
 	# Copy in all .jl sources as well
-	cp -R -L $(build_datarootdir)/julia $(DESTDIR)$(datarootdir)/
+	mkdir -p $(DESTDIR)$(datarootdir)/julia/{base,test}
+	cp -R -L $(JULIAHOME)/base/* $(DESTDIR)$(datarootdir)/julia/base
+	cp -R -L $(JULIAHOME)/test/* $(DESTDIR)$(datarootdir)/julia/test
+	cp -R -L $(build_datarootdir)/julia/* $(DESTDIR)$(datarootdir)/julia
 	# Copy documentation
 	cp -R -L $(BUILDROOT)/doc/_build/html $(DESTDIR)$(docdir)/
 	# Remove various files which should not be installed
@@ -397,10 +405,12 @@ endif
 	# Update RPATH entries and JL_SYSTEM_IMAGE_PATH if $(private_libdir_rel) != $(build_private_libdir_rel)
 ifneq ($(private_libdir_rel),$(build_private_libdir_rel))
 ifeq ($(OS), Darwin)
+ifneq ($(DARWIN_FRAMEWORK),1)
 	for j in $(JL_TARGETS) ; do \
 		install_name_tool -rpath @executable_path/$(build_private_libdir_rel) @executable_path/$(private_libdir_rel) $(DESTDIR)$(bindir)/$$j; \
 		install_name_tool -add_rpath @executable_path/$(build_libdir_rel) @executable_path/$(libdir_rel) $(DESTDIR)$(bindir)/$$j; \
 	done
+endif
 else ifneq (,$(findstring $(OS),Linux FreeBSD))
 	for j in $(JL_TARGETS) ; do \
 		patchelf --set-rpath '$$ORIGIN/$(private_libdir_rel):$$ORIGIN/$(libdir_rel)' $(DESTDIR)$(bindir)/$$j; \
@@ -408,9 +418,13 @@ else ifneq (,$(findstring $(OS),Linux FreeBSD))
 endif
 
 	# Overwrite JL_SYSTEM_IMAGE_PATH in julia library
+ifneq ($(DARWIN_FRAMEWORK),1)
 	$(call stringreplace,$(DESTDIR)$(libdir)/libjulia.$(SHLIB_EXT),sys.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys.$(SHLIB_EXT))
 ifeq ($(BUNDLE_DEBUG_LIBS),1)
 	$(call stringreplace,$(DESTDIR)$(libdir)/libjulia-debug.$(SHLIB_EXT),sys-debug.$(SHLIB_EXT)$$,$(private_libdir_rel)/sys-debug.$(SHLIB_EXT))
+endif
+else
+	$(call stringreplace,$(DESTDIR)$(prefix)/$(framework_dylib),sys$(JULIA_LIBSUFFIX).$(SHLIB_EXT)$$,$(private_libdir_rel)/sys$(JULIA_LIBSUFFIX).$(SHLIB_EXT))
 endif
 
 endif

@@ -173,6 +173,7 @@ endif
 	@## because we want to test the non-default debug configuration
 	@#rm -r $@.dSYM && mv $@.tmp.dSYM $@.dSYM
 	mv $@.tmp $@
+	$(INSTALL_NAME_CMD)libccalltest.$(SHLIB_EXT) $@
 
 julia_flisp.boot.inc.phony: $(BUILDDIR)/julia_flisp.boot.inc
 
