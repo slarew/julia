@@ -614,6 +614,7 @@ ifeq ($(DARWIN_FRAMEWORK),1)
 ifneq ($(OS), Darwin)
 	$(error Darwin framework cannot be enabled for non-Darwin OS)
 endif
+JCFLAGS += -DDARWIN_FRAMEWORK
 endif
 
 ifeq ($(SANITIZE),1)
@@ -1074,7 +1075,7 @@ ifeq ($(OS), Darwin)
 INSTALL_NAME_CMD := install_name_tool -id $(INSTALL_NAME_ID_DIR)
 INSTALL_NAME_CHANGE_CMD := install_name_tool -change
 SHLIB_EXT := dylib
-OSLIBS += $(LIBUNWIND)
+OSLIBS += -framework CoreFoundation $(LIBUNWIND)
 WHOLE_ARCHIVE := -Xlinker -all_load
 NO_WHOLE_ARCHIVE :=
 # Embed an Info.plist in the julia executable

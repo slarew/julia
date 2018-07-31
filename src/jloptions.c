@@ -19,6 +19,10 @@ char *shlib_ext = ".dylib";
 #else
 char *shlib_ext = ".so";
 #endif
+ 
+#ifdef DARWIN_FRAMEWORK
+static const char *jl_get_cfpref_sysimg_path(void);
+#endif
 
 static const char system_image_path[256] = "\0" JL_SYSTEM_IMAGE_PATH;
 JL_DLLEXPORT const char *jl_get_default_sysimg_path(void)
@@ -231,6 +235,13 @@ JL_DLLEXPORT void jl_parse_opts(int *argcp, char ***argvp)
     // it here, rather than as part of the static initialization above.
     jl_options.image_file = jl_get_default_sysimg_path();
     jl_options.cmds = NULL;
+
+#ifdef DARWIN_FRAMEWORK
+    char const *cfpref_image_file = jl_get_cfpref_sysimg_path();
+    if (cfpref_image_file) {
+        jl_options.image_file = cfpref_image_file;
+    }
+#endif
 
     int ncmds = 0;
     const char **cmds = NULL;
@@ -641,3 +652,121 @@ JL_DLLEXPORT ssize_t jl_sizeof_jl_options(void)
 {
     return sizeof(jl_options_t);
 }
+
+#ifdef DARWIN_FRAMEWORK
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <pwd.h>
+#include <os/log.h>
+#include <CoreFoundation/CoreFoundation.h>
+
+static void inline julia_CFScopedRelease(void const * const cf) {
+    if(*(CFTypeRef const*)cf) CFRelease(*(CFTypeRef const*)cf);
+}
+#define SCOPED_CFRELEASE __attribute__((__cleanup__(julia_CFScopedRelease)))
+
+static CFURLRef CFCopyHomeDirectoryURLmacos(void)
+{
+    const char *homedir = getenv("HOME");
+    if (homedir) {
+        os_log_debug(OS_LOG_DEFAULT, "homedir HOME %{public}s", homedir);
+        return CFURLCreateFromFileSystemRepresentation(NULL,
+                                                       (const UInt8*)homedir,
+                                                       strlen(homedir),
+                                                       TRUE);
+    }
+
+    int bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (bufsize == -1) {
+        return NULL;
+    }
+
+    char buffer[bufsize];
+    struct passwd pwd, *result = NULL;
+
+    if (getpwuid_r(getuid(), &pwd, buffer, bufsize, &result) != 0 || !result) {
+        return NULL;
+    }
+
+    os_log_debug(OS_LOG_DEFAULT, "homedir getpwuid %{public}s", pwd.pw_dir);
+
+    return CFURLCreateFromFileSystemRepresentation(NULL,
+                                                   (const UInt8*)pwd.pw_dir,
+                                                   strlen(pwd.pw_dir),
+                                                   TRUE);
+}
+
+static const char *jl_get_cfpref_sysimg_path(void)
+{
+    CFURLRef SCOPED_CFRELEASE homedirurl = CFCopyHomeDirectoryURLmacos();
+    if (!homedirurl) {
+        return NULL;
+    }
+
+    // Get the sysimg value from the user and system domains.
+    //
+    CFDictionaryRef SCOPED_CFRELEASE sysimgdictpref =
+        CFPreferencesCopyValue(CFSTR("sysimg"),
+                               kCFPreferencesCurrentApplication,
+                               kCFPreferencesCurrentUser,
+                               kCFPreferencesAnyHost);
+
+    if (!sysimgdictpref) {
+        os_log_debug(OS_LOG_DEFAULT, "No sysimg key in preferences.");
+        return NULL;
+    }
+
+    if (CFGetTypeID(sysimgdictpref) != CFDictionaryGetTypeID()) {
+        os_log(OS_LOG_DEFAULT,
+            "Expected dictionary value for sysimg key but found type id %lu.",
+            CFGetTypeID(sysimgdictpref));
+        return NULL;
+    }
+
+    CFStringRef imagepathpref =
+        CFDictionaryGetValue(sysimgdictpref, CFSTR(JULIA_VERSION_STRING));
+
+    if (!imagepathpref) {
+        os_log_debug(OS_LOG_DEFAULT,
+                     "Key %{public}s not present in sysimg dictionary.",
+                     JULIA_VERSION_STRING);
+        return NULL;
+    }
+
+    if (CFGetTypeID(imagepathpref) == CFStringGetTypeID()) {
+        CFURLRef imagepathurl =
+            CFURLCreateWithFileSystemPathRelativeToBase(NULL,
+                                                        imagepathpref,
+                                                        kCFURLPOSIXPathStyle,
+                                                        FALSE,
+                                                        homedirurl);
+        if (!imagepathurl) {
+            os_log(OS_LOG_DEFAULT,
+                   "Failed resolving %@ relative to %{public}@.",
+                   imagepathpref, homedirurl);
+            return NULL;
+        }
+        CFStringRef SCOPED_CFRELEASE imagepathstr =
+            CFURLCopyFileSystemPath(imagepathurl, kCFURLPOSIXPathStyle);
+        CFIndex buflen =
+            CFStringGetMaximumSizeOfFileSystemRepresentation(imagepathstr);
+        char buf[buflen];
+        if (!CFStringGetFileSystemRepresentation(imagepathstr, buf, buflen)) {
+            os_log(OS_LOG_DEFAULT,
+                   "Failed converting %@ to file system representation.",
+                   imagepathstr);
+            return NULL;
+        }
+        os_log_info(OS_LOG_DEFAULT, "User preference system image file: %s", buf);
+        return strdup(buf);
+    }
+
+    os_log(OS_LOG_DEFAULT,
+        "Expected string for value of sysimg dict entry but found type id %lu.",
+        CFGetTypeID(imagepathpref));
+
+    return NULL;
+}
+
+#endif
